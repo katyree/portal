@@ -37,18 +37,36 @@ pub enum LauncherId {
     Rockstar,
     BattleNet,
     Amazon,
+    Gog,
+    Riot,
+    Itch,
+    GameJolt,
+    IndieGala,
+    MicrosoftStore,
+    Hytale,
+    CloneHero,
+    Yarc,
 }
 
 impl LauncherId {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 17] = [
+        Self::Amazon,
+        Self::BattleNet,
+        Self::CloneHero,
+        Self::Ea,
+        Self::Epic,
+        Self::GameJolt,
+        Self::Gog,
+        Self::Hytale,
+        Self::IndieGala,
+        Self::Itch,
+        Self::MicrosoftStore,
+        Self::Riot,
+        Self::Rockstar,
         Self::Steam,
         Self::Ubisoft,
-        Self::Epic,
         Self::Xbox,
-        Self::Ea,
-        Self::Rockstar,
-        Self::BattleNet,
-        Self::Amazon,
+        Self::Yarc,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -56,10 +74,19 @@ impl LauncherId {
             Self::Ubisoft => "Ubisoft Connect",
             Self::Epic => "Epic Games",
             Self::Xbox => "Xbox",
-            Self::Ea => "EA",
+            Self::Ea => "EA app",
             Self::Rockstar => "Rockstar Games",
             Self::BattleNet => "Battle.net",
             Self::Amazon => "Amazon Games",
+            Self::Gog => "GOG GALAXY",
+            Self::Riot => "Riot Client",
+            Self::Itch => "itch",
+            Self::GameJolt => "Game Jolt Client",
+            Self::IndieGala => "IndieGala Client",
+            Self::MicrosoftStore => "Microsoft Store",
+            Self::Hytale => "Hytale Launcher",
+            Self::CloneHero => "Clone Hero Launcher",
+            Self::Yarc => "YARC Launcher",
         }
     }
     pub fn slug(self) -> &'static str {
@@ -72,6 +99,15 @@ impl LauncherId {
             Self::Rockstar => "rockstargames",
             Self::BattleNet => "battledotnet",
             Self::Amazon => "amazon",
+            Self::Gog => "goggalaxy",
+            Self::Riot => "riot",
+            Self::Itch => "itch",
+            Self::GameJolt => "gamejolt",
+            Self::IndieGala => "indiegala",
+            Self::MicrosoftStore => "microsoftstore",
+            Self::Hytale => "hytale",
+            Self::CloneHero => "clonehero",
+            Self::Yarc => "yarc",
         }
     }
     fn executables(self) -> &'static [&'static str] {
@@ -84,6 +120,15 @@ impl LauncherId {
             Self::Rockstar => &["LauncherPatcher.exe", "Launcher.exe"],
             Self::BattleNet => &["Battle.net Launcher.exe", "Battle.net.exe"],
             Self::Amazon => &["Amazon Games.exe"],
+            Self::Gog => &["GalaxyClient.exe"],
+            Self::Riot => &["RiotClientServices.exe", "RiotClientUx.exe"],
+            Self::Itch => &["itch-setup.exe", "itch.exe"],
+            Self::GameJolt => &["GameJoltClient.exe"],
+            Self::IndieGala => &["IGClient.exe", "GalaClient.exe"],
+            Self::MicrosoftStore => &["WinStore.App.exe"],
+            Self::Hytale => &["hytale-launcher.exe"],
+            Self::CloneHero => &["ch_launcher.exe"],
+            Self::Yarc => &["YARC Launcher.exe", "yet_another_launcher.exe"],
         }
     }
     fn relative_paths(self) -> &'static [&'static str] {
@@ -108,6 +153,30 @@ impl LauncherId {
                 r"Battle.net\Battle.net.exe",
             ],
             Self::Amazon => &[r"Amazon Games\App\Amazon Games.exe"],
+            Self::Gog => &[r"GOG Galaxy\GalaxyClient.exe"],
+            Self::Riot => &[r"Riot Games\Riot Client\RiotClientServices.exe"],
+            Self::Itch => &[r"itch\itch-setup.exe", r"itch\itch.exe"],
+            Self::GameJolt => &[r"GameJoltClient\GameJoltClient.exe"],
+            Self::IndieGala => &[
+                r"IGClient\IGClient.exe",
+                r"Programs\IGClient\IGClient.exe",
+                r"IndieGala\IGClient.exe",
+                r"GalaClient\GalaClient.exe",
+            ],
+            Self::MicrosoftStore => &[],
+            Self::Hytale => &[
+                r"Hypixel Studios\Hytale Launcher\hytale-launcher.exe",
+                r"Hytale Launcher\hytale-launcher.exe",
+            ],
+            Self::CloneHero => &[
+                r"Clone Hero Launcher\ch_launcher.exe",
+                r"Programs\Clone Hero Launcher\ch_launcher.exe",
+            ],
+            Self::Yarc => &[
+                r"YARC Launcher\YARC Launcher.exe",
+                r"Programs\YARC Launcher\YARC Launcher.exe",
+                r"YARC Launcher\yet_another_launcher.exe",
+            ],
         }
     }
     fn matches_display_name(self, name: &str) -> bool {
@@ -121,6 +190,17 @@ impl LauncherId {
             Self::Rockstar => name.contains("rockstar games launcher"),
             Self::BattleNet => name == "battle.net" || name.contains("battle.net launcher"),
             Self::Amazon => name == "amazon games" || name == "amazon games app",
+            Self::Gog => name == "gog galaxy" || name.starts_with("gog galaxy "),
+            Self::Riot => name == "riot client",
+            Self::Itch => name == "itch" || name == "itch.io",
+            Self::GameJolt => name == "game jolt client" || name == "gamejolt client",
+            Self::IndieGala => {
+                name == "igclient" || name.contains("indiegala client") || name == "galaclient"
+            }
+            Self::MicrosoftStore => false,
+            Self::Hytale => name == "hytale" || name.starts_with("hytale launcher"),
+            Self::CloneHero => name.starts_with("clone hero launcher"),
+            Self::Yarc => name.starts_with("yarc launcher") || name == "yet another launcher",
         }
     }
 }
@@ -129,7 +209,7 @@ impl LauncherId {
 pub enum LaunchTarget {
     Executable(PathBuf),
     WindowsApp(String),
-    XboxProtocol(&'static str),
+    Protocol(&'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -206,13 +286,35 @@ impl Catalog {
             .collect()
     }
     fn discover(&self, id: LauncherId) -> Option<LaunchTarget> {
-        if let Some(path) = self.settings.executable_overrides.get(&id) {
-            return validate_executable(path).ok().map(LaunchTarget::Executable);
+        if let Some(path) = self.settings.executable_overrides.get(&id)
+            && let Ok(path) = validate_executable(path)
+        {
+            return Some(LaunchTarget::Executable(path));
         }
         if id == LauncherId::Xbox {
             return discover_xbox();
         }
+        if id == LauncherId::MicrosoftStore {
+            return discover_windows_app("Microsoft.WindowsStore_8wekyb3d8bbwe")
+                .map(LaunchTarget::WindowsApp)
+                .or_else(|| {
+                    protocol_registered("ms-windows-store")
+                        .then_some(LaunchTarget::Protocol("ms-windows-store"))
+                });
+        }
         let mut candidates = Vec::new();
+        if id == LauncherId::Riot
+            && let Some(program_data) = env::var_os("ProgramData")
+            && let Ok(bytes) =
+                fs::read(PathBuf::from(program_data).join(r"Riot Games\RiotClientInstalls.json"))
+            && let Ok(installs) = serde_json::from_slice::<serde_json::Value>(&bytes)
+        {
+            for key in ["rc_default", "rc_live"] {
+                if let Some(path) = installs.get(key).and_then(|value| value.as_str()) {
+                    candidates.push(PathBuf::from(path));
+                }
+            }
+        }
         if id == LauncherId::Steam {
             for (hive, key, value) in [
                 (HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
@@ -315,12 +417,17 @@ impl Catalog {
                     ]
                     .into_iter()
                     .filter_map(env::var_os)
-                    .map(PathBuf::from),
+                    .map(PathBuf::from)
+                    .chain(env::var_os("SystemDrive").map(|mut drive| {
+                        drive.push(r"\");
+                        PathBuf::from(drive)
+                    })),
                 )
             })
             .map(LaunchTarget::Executable)
     }
-    pub fn set_executable(&mut self, id: LauncherId, path: PathBuf) -> Result<()> {
+    #[cfg(test)]
+    fn set_executable(&mut self, id: LauncherId, path: PathBuf) -> Result<()> {
         let path = validate_executable(&path)?;
         let mut settings = self.settings.clone();
         settings.executable_overrides.insert(id, path);
@@ -359,7 +466,7 @@ impl Catalog {
         }
         match self
             .discover(id)
-            .context("Launcher not found. Select its executable using the folder button.")?
+            .context("Launcher not found. Install it and refresh Portal.")?
         {
             LaunchTarget::Executable(path) => {
                 let path = validate_executable(&path)?;
@@ -383,9 +490,9 @@ impl Catalog {
                     )?;
                 }
             }
-            LaunchTarget::XboxProtocol(scheme) => {
+            LaunchTarget::Protocol(scheme) => {
                 if !protocol_registered(scheme) {
-                    bail!("Xbox is not registered on this PC")
+                    bail!("{} is not registered on this PC", id.name())
                 }
                 let uri: Vec<u16> = format!("{scheme}:").encode_utf16().chain(Some(0)).collect();
                 let result = unsafe {
@@ -399,7 +506,7 @@ impl Catalog {
                     )
                 };
                 if result.0 as isize <= 32 {
-                    bail!("Windows could not open Xbox")
+                    bail!("Windows could not open {}", id.name())
                 }
             }
         }
@@ -431,19 +538,18 @@ impl Drop for WindowsApartment {
 }
 
 fn discover_xbox() -> Option<LaunchTarget> {
-    discover_xbox_app()
+    discover_windows_app("Microsoft.GamingApp_8wekyb3d8bbwe")
         .map(LaunchTarget::WindowsApp)
         .or_else(|| {
             ["xbox", "ms-xbox"]
                 .into_iter()
                 .find(|scheme| protocol_registered(scheme))
-                .map(LaunchTarget::XboxProtocol)
+                .map(LaunchTarget::Protocol)
         })
 }
 
-fn discover_xbox_app() -> Option<String> {
+fn discover_windows_app(family: &str) -> Option<String> {
     let _apartment = WindowsApartment::initialize().ok()?;
-    let family = "Microsoft.GamingApp_8wekyb3d8bbwe";
     let packages = PackageManager::new()
         .ok()?
         .FindPackagesByUserSecurityIdPackageFamilyName(&HSTRING::new(), &HSTRING::from(family))
@@ -490,7 +596,12 @@ fn common_installation(
 mod tests {
     use super::*;
     #[test]
-    fn discovers_the_three_requested_launcher_installations() -> Result<()> {
+    fn discovers_requested_desktop_clients_in_alphabetical_catalog() -> Result<()> {
+        assert!(
+            LauncherId::ALL
+                .windows(2)
+                .all(|pair| pair[0].name().to_lowercase() < pair[1].name().to_lowercase())
+        );
         let directory = tempfile::tempdir()?;
         for (id, path) in [
             (LauncherId::Amazon, r"Amazon Games\App\Amazon Games.exe"),
@@ -499,6 +610,23 @@ mod tests {
                 r"Rockstar Games\Launcher\LauncherPatcher.exe",
             ),
             (LauncherId::BattleNet, r"Battle.net\Battle.net Launcher.exe"),
+            (LauncherId::Gog, r"GOG Galaxy\GalaxyClient.exe"),
+            (
+                LauncherId::Riot,
+                r"Riot Games\Riot Client\RiotClientServices.exe",
+            ),
+            (LauncherId::Itch, r"itch\itch-setup.exe"),
+            (LauncherId::GameJolt, r"GameJoltClient\GameJoltClient.exe"),
+            (LauncherId::IndieGala, r"IGClient\IGClient.exe"),
+            (
+                LauncherId::Hytale,
+                r"Hypixel Studios\Hytale Launcher\hytale-launcher.exe",
+            ),
+            (
+                LauncherId::CloneHero,
+                r"Clone Hero Launcher\ch_launcher.exe",
+            ),
+            (LauncherId::Yarc, r"YARC Launcher\YARC Launcher.exe"),
         ] {
             let executable = directory.path().join(path);
             fs::create_dir_all(executable.parent().unwrap())?;

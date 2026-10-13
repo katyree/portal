@@ -3183,9 +3183,10 @@ checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
 
 [[package]]
 name = "portal"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
+ "embed-resource",
  "gpui",
  "serde",
  "serde_json",

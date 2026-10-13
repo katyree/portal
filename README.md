@@ -1,6 +1,6 @@
 # portal
 
-A minimal Windows game launcher dashboard built with Rust and GPUI. The dark Studio interface puts Steam, Ubisoft Connect, Epic Games, Xbox, EA, Rockstar Games, Battle.net, and Amazon Games in one list.
+A minimal Windows game launcher dashboard built with Rust and GPUI. The dark Studio interface lists Amazon Games, Battle.net, Clone Hero Launcher, EA app, Epic Games, Game Jolt Client, GOG GALAXY, Hytale Launcher, IndieGala Client, itch, Microsoft Store, Riot Client, Rockstar Games, Steam, Ubisoft Connect, Xbox, and YARC Launcher alphabetically. Settings uses the same order.
 
 ## Install Portal
 
@@ -20,11 +20,15 @@ Install stable Rust and the Visual Studio C++ build tools with the Windows SDK, 
 cargo run --locked
 ```
 
-Click the arrow to open an installed launcher. The adjacent label says **Running** or **Launch**, with a green dot beside **Running**. Click the folder button or the plus button to select a launcher executable when automatic detection misses it. Use Search to filter the list and the refresh button to scan again.
+Click the arrow to open an automatically detected launcher. The adjacent label says **Running** or **Launch**, with a green dot beside **Running**. Launchers that Portal cannot find show **Not installed** without a launch button. Use Search to filter the list and the refresh button to scan again.
 
 Portal checks registered installation paths and common Windows locations, including Amazon Games under LocalAppData, Rockstar's `LauncherPatcher.exe`, and Battle.net's stable launcher executable. Xbox is discovered through its current-user Windows package and activated using its app ID, with the registered `xbox:` and `ms-xbox:` protocols as fallbacks. Custom executable paths are saved in `%LOCALAPPDATA%\Portal\settings.json`. Portal refreshes status every five seconds. It does not collect game libraries or sign into platform accounts.
 
 Open **Settings** to enable or disable each launcher integration. Disabled launchers disappear from the dashboard and are excluded from discovery, status tracking, and launching. Choices persist across restarts. Turning an integration off preserves its custom executable path and leaves the launcher installed and running.
+
+GOG GALAXY, Riot Client, Game Jolt Client, and IndieGala Client use registered installation locations and known executable paths. Riot's client-installation manifest also supports custom locations. itch uses its stable `itch-setup.exe` launcher. Microsoft Store uses its Windows package app ID, with the registered `ms-windows-store:` protocol as a fallback. Existing custom executable paths remain supported; unavailable saved paths fall back to automatic discovery.
+
+Hytale Launcher, Clone Hero Launcher, and YARC Launcher also use registered installation locations and common Windows paths. Their executable names are `hytale-launcher.exe`, `ch_launcher.exe`, and `YARC Launcher.exe`. YARC Launcher manages Yet Another Rhythm Game, or YARG; Portal opens the launcher rather than the game.
 
 ## Check the build
 
@@ -43,9 +47,20 @@ The debug binary also supports these commands:
 .\target\debug\portal.exe --settings
 ```
 
-Other launcher names are `ubisoft`, `epicgames`, `xbox`, `ea`, `rockstargames`, `battledotnet`, and `amazon`.
+Launcher names are `amazon`, `battledotnet`, `clonehero`, `ea`, `epicgames`, `gamejolt`, `goggalaxy`, `hytale`, `indiegala`, `itch`, `microsoftstore`, `riot`, `rockstargames`, `steam`, `ubisoft`, `xbox`, and `yarc`.
 
 Set `PORTAL_SETTINGS_DIR` to use an isolated settings directory for testing. Saved paths stay outside the repository. The packaged executable embeds its launcher icons and does not need the assets directory beside it.
+
+## Portal branding
+
+Portal uses the Nexus mark in its header, Windows executable, installer, and shortcuts. `assets/portal.svg` is the editable source. `assets/portal.ico` contains 17 sizes from 16 through 256 pixels; `assets/icons` contains each PNG size, and `assets/portal.png` is the 512-pixel UI image.
+
+Generated assets are checked in, so normal Rust builds do not need Node.js. To regenerate them after editing the SVG:
+
+```powershell
+npm install --prefix .tools/branding --no-save --no-package-lock @resvg/resvg-js@2.6.2
+node scripts/generate-branding.cjs
+```
 
 ## Build the installer
 
@@ -67,8 +82,8 @@ The check refuses to run if Portal is already installed for the current account.
 
 ## Initial scope
 
-This prototype targets Windows. Launch detection and process names vary across launcher updates. Use the executable picker for custom installation locations. A process match reports running state; it does not confirm that a launcher is signed in or ready to play.
+This prototype targets Windows. Launch detection and process names vary across launcher updates. A process match reports running state; it does not confirm that a launcher is signed in or ready to play.
 
 ## Credits
 
-The text input is adapted from [GPUI 0.2.2's input example](https://docs.rs/crate/gpui/0.2.2/source/examples/input.rs), under Apache-2.0. The launcher marks come from [Simple Icons](https://github.com/simple-icons/simple-icons). Xbox's mark is from Simple Icons 12.4.0. Brand marks belong to their respective owners.
+The text input is adapted from [GPUI 0.2.2's input example](https://docs.rs/crate/gpui/0.2.2/source/examples/input.rs), under Apache-2.0. The launcher marks come from [Simple Icons](https://github.com/simple-icons/simple-icons). Xbox, GOG, Riot, itch, Game Jolt, and Microsoft Store marks are from Simple Icons 12.4.0. IndieGala, Hytale, Clone Hero, and YARC use letter badges. Brand marks belong to their respective owners.

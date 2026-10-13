@@ -30,7 +30,12 @@ fn main() -> Result<()> {
             .find(|id| args.get(1).is_some_and(|slug| slug == id.slug()))
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Use --launch steam|ubisoft|epicgames|xbox|ea|rockstargames|battledotnet|amazon"
+                    "Use --launch followed by one of: {}",
+                    catalog::LauncherId::ALL
+                        .into_iter()
+                        .map(|id| id.slug())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             })?;
         return catalog::Catalog::load()?.launch(id);

@@ -38,6 +38,7 @@ CloseApplications=yes
 CloseApplicationsFilter=portal.exe
 RestartApplications=no
 SetupLogging=yes
+SetupIconFile={#RepositoryRoot}\assets\portal.ico
 VersionInfoVersion={#AppVersion}
 
 [Tasks]
@@ -49,7 +50,7 @@ Source: "{#RepositoryRoot}\third-party\GPUI-APACHE-2.0.txt"; DestDir: "{app}\lic
 
 [Icons]
 Name: "{group}\Portal"; Filename: "{app}\portal.exe"; WorkingDir: "{app}"
-Name: "{group}\Uninstall Portal"; Filename: "{uninstallexe}"
+Name: "{group}\Uninstall Portal"; Filename: "{uninstallexe}"; IconFilename: "{app}\portal.exe"
 Name: "{autodesktop}\Portal"; Filename: "{app}\portal.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]

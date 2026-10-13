@@ -3,8 +3,8 @@ use crate::{
     search_input::TextInput,
 };
 use gpui::{
-    AssetSource, Context, Entity, PathPromptOptions, SharedString, Window, div, prelude::*, px,
-    rgb, svg,
+    AssetSource, Context, Entity, ImageSource, Resource, SharedString, Window, div, img,
+    prelude::*, px, rgb, svg,
 };
 use std::{borrow::Cow, time::Duration};
 
@@ -12,6 +12,7 @@ pub struct Assets;
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
         let bytes: &[u8] = match path {
+            "portal.png" => include_bytes!("../assets/portal.png"),
             "steam.svg" => include_bytes!("../assets/steam.svg"),
             "ubisoft.svg" => include_bytes!("../assets/ubisoft.svg"),
             "epicgames.svg" => include_bytes!("../assets/epicgames.svg"),
@@ -20,6 +21,15 @@ impl AssetSource for Assets {
             "rockstargames.svg" => include_bytes!("../assets/rockstargames.svg"),
             "battledotnet.svg" => include_bytes!("../assets/battledotnet.svg"),
             "amazon.svg" => include_bytes!("../assets/amazon.svg"),
+            "goggalaxy.svg" => include_bytes!("../assets/goggalaxy.svg"),
+            "riot.svg" => include_bytes!("../assets/riot.svg"),
+            "itch.svg" => include_bytes!("../assets/itch.svg"),
+            "gamejolt.svg" => include_bytes!("../assets/gamejolt.svg"),
+            "indiegala.svg" => include_bytes!("../assets/indiegala.svg"),
+            "microsoftstore.svg" => include_bytes!("../assets/microsoftstore.svg"),
+            "hytale.svg" => include_bytes!("../assets/hytale.svg"),
+            "clonehero.svg" => include_bytes!("../assets/clonehero.svg"),
+            "yarc.svg" => include_bytes!("../assets/yarc.svg"),
             _ => return Ok(None),
         };
         Ok(Some(Cow::Borrowed(bytes)))
@@ -120,43 +130,6 @@ impl Portal {
         })
         .detach();
     }
-    fn locate(&mut self, id: LauncherId, cx: &mut Context<Self>) {
-        if self.catalog.is_none() {
-            return;
-        }
-        let picker = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some(format!("Locate {} executable", id.name()).into()),
-        });
-        cx.spawn(async move |view, cx| {
-            let selected = match picker.await {
-                Ok(Ok(Some(paths))) => paths.into_iter().next(),
-                Ok(Ok(None)) => return,
-                _ => {
-                    let _ = view.update(cx, |portal, cx| {
-                        portal.message = Some("Could not open the file picker.".into());
-                        cx.notify();
-                    });
-                    return;
-                }
-            };
-            if let Some(path) = selected {
-                let _ = view.update(cx, |portal, cx| {
-                    if let Some(catalog) = &mut portal.catalog {
-                        portal.message = catalog
-                            .set_executable(id, path)
-                            .err()
-                            .map(|e| e.to_string());
-                        portal.refresh(cx);
-                        cx.notify();
-                    }
-                });
-            }
-        })
-        .detach();
-    }
 }
 
 impl Render for Portal {
@@ -170,6 +143,7 @@ impl Render for Portal {
             .map(|launcher| {
                 let id = launcher.id;
                 let installed = launcher.target.is_some();
+                let running = installed && launcher.running;
                 div()
                     .id(id.slug())
                     .flex()
@@ -209,55 +183,44 @@ impl Render for Portal {
                     )
                     .child(
                         div()
-                            .id(("locate", id as usize))
-                            .cursor_pointer()
-                            .text_size(px(16.))
-                            .text_color(rgb(0x9f9baa))
-                            .w(px(26.))
-                            .text_center()
-                            .child("⌑")
-                            .on_click(cx.listener(move |portal, _, _, cx| portal.locate(id, cx))),
-                    )
-                    .child(
-                        div()
                             .flex()
                             .items_center()
                             .justify_end()
                             .gap(px(6.))
-                            .w(px(61.))
+                            .w(px(90.))
                             .flex_shrink_0()
                             .text_size(px(11.))
-                            .text_color(rgb(if launcher.running { 0x83cda0 } else { 0xa39eac }))
-                            .when(launcher.running, |d| {
+                            .text_color(rgb(if running { 0x83cda0 } else { 0xa39eac }))
+                            .when(running, |d| {
                                 d.child(div().size(px(5.)).rounded_full().bg(rgb(0x83cda0)))
                             })
-                            .child(if launcher.running {
+                            .child(if !installed {
+                                "Not installed"
+                            } else if running {
                                 "Running"
                             } else {
                                 "Launch"
                             }),
                     )
-                    .child(
-                        div()
-                            .id(("launch", id as usize))
-                            .cursor_pointer()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .size(px(33.))
-                            .rounded(px(9.))
-                            .bg(rgb(if installed { 0x373440 } else { 0x292930 }))
-                            .text_color(rgb(if installed { 0xd9cdee } else { 0x817e8b }))
-                            .text_size(px(18.))
-                            .child(if installed { "↗" } else { "+" })
-                            .on_click(cx.listener(move |portal, _, _, cx| {
-                                if installed {
+                    .child(div().size(px(33.)).flex_shrink_0().when(installed, |d| {
+                        d.child(
+                            div()
+                                .id(("launch", id as usize))
+                                .cursor_pointer()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .size(px(33.))
+                                .rounded(px(9.))
+                                .bg(rgb(0x373440))
+                                .text_color(rgb(0xd9cdee))
+                                .text_size(px(18.))
+                                .child("↗")
+                                .on_click(cx.listener(move |portal, _, _, cx| {
                                     portal.launch(id, cx);
-                                } else {
-                                    portal.locate(id, cx);
-                                }
-                            })),
-                    )
+                                })),
+                        )
+                    }))
             })
             .collect();
         let empty = rows.is_empty();
@@ -326,7 +289,12 @@ impl Render for Portal {
                             .flex()
                             .items_center()
                             .gap(px(9.))
-                            .child(div().size(px(18.)).rounded(px(6.)).bg(rgb(0xbaabde)))
+                            .child(
+                                img(ImageSource::Resource(Resource::Embedded(
+                                    "portal.png".into(),
+                                )))
+                                .size(px(24.)),
+                            )
                             .child(div().text_size(px(12.)).child("portal")),
                     )
                     .child(
