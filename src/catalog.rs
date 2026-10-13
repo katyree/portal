@@ -9,8 +9,20 @@ use std::{
 };
 use sysinfo::{ProcessesToUpdate, System};
 use windows::{
-    Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
-    core::{PCWSTR, w},
+    Management::Deployment::PackageManager,
+    Win32::{
+        System::{
+            Com::{CLSCTX_LOCAL_SERVER, CoCreateInstance},
+            WinRT::{RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize},
+        },
+        UI::{
+            Shell::{
+                AO_NONE, ApplicationActivationManager, IApplicationActivationManager, ShellExecuteW,
+            },
+            WindowsAndMessaging::SW_SHOWNORMAL,
+        },
+    },
+    core::{HSTRING, PCWSTR, w},
 };
 use winreg::{RegKey, enums::*};
 
@@ -22,10 +34,22 @@ pub enum LauncherId {
     Epic,
     Xbox,
     Ea,
+    Rockstar,
+    BattleNet,
+    Amazon,
 }
 
 impl LauncherId {
-    pub const ALL: [Self; 5] = [Self::Steam, Self::Ubisoft, Self::Epic, Self::Xbox, Self::Ea];
+    pub const ALL: [Self; 8] = [
+        Self::Steam,
+        Self::Ubisoft,
+        Self::Epic,
+        Self::Xbox,
+        Self::Ea,
+        Self::Rockstar,
+        Self::BattleNet,
+        Self::Amazon,
+    ];
     pub fn name(self) -> &'static str {
         match self {
             Self::Steam => "Steam",
@@ -33,6 +57,9 @@ impl LauncherId {
             Self::Epic => "Epic Games",
             Self::Xbox => "Xbox",
             Self::Ea => "EA",
+            Self::Rockstar => "Rockstar Games",
+            Self::BattleNet => "Battle.net",
+            Self::Amazon => "Amazon Games",
         }
     }
     pub fn slug(self) -> &'static str {
@@ -42,6 +69,9 @@ impl LauncherId {
             Self::Epic => "epicgames",
             Self::Xbox => "xbox",
             Self::Ea => "ea",
+            Self::Rockstar => "rockstargames",
+            Self::BattleNet => "battledotnet",
+            Self::Amazon => "amazon",
         }
     }
     fn executables(self) -> &'static [&'static str] {
@@ -51,6 +81,9 @@ impl LauncherId {
             Self::Epic => &["EpicGamesLauncher.exe"],
             Self::Xbox => &["XboxPcApp.exe", "GamingApp.exe"],
             Self::Ea => &["EADesktop.exe"],
+            Self::Rockstar => &["LauncherPatcher.exe", "Launcher.exe"],
+            Self::BattleNet => &["Battle.net Launcher.exe", "Battle.net.exe"],
+            Self::Amazon => &["Amazon Games.exe"],
         }
     }
     fn relative_paths(self) -> &'static [&'static str] {
@@ -66,6 +99,15 @@ impl LauncherId {
             ],
             Self::Xbox => &[],
             Self::Ea => &[r"Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe"],
+            Self::Rockstar => &[
+                r"Rockstar Games\Launcher\LauncherPatcher.exe",
+                r"Rockstar Games\Launcher\Launcher.exe",
+            ],
+            Self::BattleNet => &[
+                r"Battle.net\Battle.net Launcher.exe",
+                r"Battle.net\Battle.net.exe",
+            ],
+            Self::Amazon => &[r"Amazon Games\App\Amazon Games.exe"],
         }
     }
     fn matches_display_name(self, name: &str) -> bool {
@@ -76,6 +118,9 @@ impl LauncherId {
             Self::Epic => name.contains("epic games launcher"),
             Self::Xbox => false,
             Self::Ea => name == "ea app" || name == "ea desktop",
+            Self::Rockstar => name.contains("rockstar games launcher"),
+            Self::BattleNet => name == "battle.net" || name.contains("battle.net launcher"),
+            Self::Amazon => name == "amazon games" || name == "amazon games app",
         }
     }
 }
@@ -83,7 +128,8 @@ impl LauncherId {
 #[derive(Clone, Debug)]
 pub enum LaunchTarget {
     Executable(PathBuf),
-    XboxProtocol,
+    WindowsApp(String),
+    XboxProtocol(&'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -134,10 +180,13 @@ impl Catalog {
             .map(|id| {
                 let target = self.discover(id);
                 let running = system.processes().values().any(|process| {
-                    let known_process = id
+                    let mut known_process = id
                         .executables()
                         .iter()
                         .any(|exe| process.name().to_string_lossy().eq_ignore_ascii_case(exe));
+                    if id == LauncherId::Rockstar && process.name().to_string_lossy().eq_ignore_ascii_case("Launcher.exe") {
+                        known_process = matches!(&target, Some(LaunchTarget::Executable(launcher)) if process.exe().is_some_and(|exe| exe.parent() == launcher.parent()));
+                    }
                     let override_process = self
                         .settings
                         .executable_overrides
@@ -158,7 +207,7 @@ impl Catalog {
             return validate_executable(path).ok().map(LaunchTarget::Executable);
         }
         if id == LauncherId::Xbox {
-            return xbox_registered().then_some(LaunchTarget::XboxProtocol);
+            return discover_xbox();
         }
         let mut candidates = Vec::new();
         if id == LauncherId::Steam {
@@ -249,16 +298,23 @@ impl Catalog {
                 }
             }
         }
-        for variable in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
-            if let Some(root) = env::var_os(variable) {
-                for suffix in id.relative_paths() {
-                    candidates.push(PathBuf::from(&root).join(suffix));
-                }
-            }
-        }
         candidates
             .into_iter()
             .find(|p| validate_executable(p).is_ok())
+            .or_else(|| {
+                common_installation(
+                    id,
+                    [
+                        "ProgramFiles",
+                        "ProgramFiles(x86)",
+                        "ProgramW6432",
+                        "LOCALAPPDATA",
+                    ]
+                    .into_iter()
+                    .filter_map(env::var_os)
+                    .map(PathBuf::from),
+                )
+            })
             .map(LaunchTarget::Executable)
     }
     pub fn set_executable(&mut self, id: LauncherId, path: PathBuf) -> Result<()> {
@@ -287,19 +343,35 @@ impl Catalog {
             LaunchTarget::Executable(path) => {
                 let path = validate_executable(&path)?;
                 Command::new(&path)
+                    .env_remove("ELECTRON_RUN_AS_NODE")
                     .current_dir(path.parent().context("Executable has no parent")?)
                     .spawn()
                     .context("Could not launch this platform")?;
             }
-            LaunchTarget::XboxProtocol => {
-                if !xbox_registered() {
+            LaunchTarget::WindowsApp(app_id) => {
+                let _apartment = WindowsApartment::initialize()?;
+                let activation: IApplicationActivationManager = unsafe {
+                    CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_LOCAL_SERVER)?
+                };
+                let app_id: Vec<u16> = app_id.encode_utf16().chain(Some(0)).collect();
+                unsafe {
+                    activation.ActivateApplication(
+                        PCWSTR(app_id.as_ptr()),
+                        PCWSTR::null(),
+                        AO_NONE,
+                    )?;
+                }
+            }
+            LaunchTarget::XboxProtocol(scheme) => {
+                if !protocol_registered(scheme) {
                     bail!("Xbox is not registered on this PC")
                 }
+                let uri: Vec<u16> = format!("{scheme}:").encode_utf16().chain(Some(0)).collect();
                 let result = unsafe {
                     ShellExecuteW(
                         None,
                         w!("open"),
-                        w!("ms-xbox:"),
+                        PCWSTR(uri.as_ptr()),
                         PCWSTR::null(),
                         PCWSTR::null(),
                         SW_SHOWNORMAL,
@@ -314,10 +386,57 @@ impl Catalog {
     }
 }
 
-fn xbox_registered() -> bool {
+fn protocol_registered(scheme: &str) -> bool {
     RegKey::predef(HKEY_CLASSES_ROOT)
-        .open_subkey("ms-xbox")
+        .open_subkey(scheme)
         .is_ok_and(|key| key.get_raw_value("URL Protocol").is_ok())
+}
+
+struct WindowsApartment;
+impl WindowsApartment {
+    fn initialize() -> windows::core::Result<Self> {
+        unsafe {
+            RoInitialize(RO_INIT_MULTITHREADED)?;
+        }
+        Ok(Self)
+    }
+}
+impl Drop for WindowsApartment {
+    fn drop(&mut self) {
+        unsafe {
+            RoUninitialize();
+        }
+    }
+}
+
+fn discover_xbox() -> Option<LaunchTarget> {
+    discover_xbox_app()
+        .map(LaunchTarget::WindowsApp)
+        .or_else(|| {
+            ["xbox", "ms-xbox"]
+                .into_iter()
+                .find(|scheme| protocol_registered(scheme))
+                .map(LaunchTarget::XboxProtocol)
+        })
+}
+
+fn discover_xbox_app() -> Option<String> {
+    let _apartment = WindowsApartment::initialize().ok()?;
+    let family = "Microsoft.GamingApp_8wekyb3d8bbwe";
+    let packages = PackageManager::new()
+        .ok()?
+        .FindPackagesByUserSecurityIdPackageFamilyName(&HSTRING::new(), &HSTRING::from(family))
+        .ok()?;
+    for package in packages {
+        let entries = package.GetAppListEntriesAsync().ok()?.get().ok()?;
+        for entry in entries {
+            let app_id = entry.AppUserModelId().ok()?.to_string();
+            if app_id.starts_with(&format!("{family}!")) {
+                return Some(app_id);
+            }
+        }
+    }
+    None
 }
 
 fn validate_executable(path: &Path) -> Result<PathBuf> {
@@ -332,9 +451,44 @@ fn validate_executable(path: &Path) -> Result<PathBuf> {
         .context("Could not resolve executable path")
 }
 
+fn common_installation(
+    id: LauncherId,
+    roots: impl IntoIterator<Item = PathBuf>,
+) -> Option<PathBuf> {
+    roots
+        .into_iter()
+        .flat_map(|root| {
+            id.relative_paths()
+                .iter()
+                .map(move |suffix| root.join(suffix))
+        })
+        .find(|path| validate_executable(path).is_ok())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn discovers_the_three_requested_launcher_installations() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        for (id, path) in [
+            (LauncherId::Amazon, r"Amazon Games\App\Amazon Games.exe"),
+            (
+                LauncherId::Rockstar,
+                r"Rockstar Games\Launcher\LauncherPatcher.exe",
+            ),
+            (LauncherId::BattleNet, r"Battle.net\Battle.net Launcher.exe"),
+        ] {
+            let executable = directory.path().join(path);
+            fs::create_dir_all(executable.parent().unwrap())?;
+            fs::write(&executable, b"Test Launcher fixture")?;
+            assert_eq!(
+                common_installation(id, [directory.path().to_path_buf()]),
+                Some(executable)
+            );
+        }
+        Ok(())
+    }
     #[test]
     fn override_round_trips_and_rejects_non_executables() -> Result<()> {
         let directory = tempfile::tempdir()?;

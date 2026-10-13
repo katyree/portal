@@ -1,6 +1,6 @@
 # portal
 
-A minimal Windows game launcher dashboard built with Rust and GPUI. The dark Studio interface puts Steam, Ubisoft Connect, Epic Games, Xbox, and EA in one list.
+A minimal Windows game launcher dashboard built with Rust and GPUI. The dark Studio interface puts Steam, Ubisoft Connect, Epic Games, Xbox, EA, Rockstar Games, Battle.net, and Amazon Games in one list.
 
 ## Install Portal
 
@@ -20,9 +20,9 @@ Install stable Rust and the Visual Studio C++ build tools with the Windows SDK, 
 cargo run --locked
 ```
 
-Click the arrow to open an installed launcher. A green dot means its process is running. Click the folder button or the plus button to select a launcher executable when automatic detection misses it. Use Search to filter the list and the refresh button to scan again.
+Click the arrow to open an installed launcher. The adjacent label says **Running** or **Launch**, with a green dot beside **Running**. Click the folder button or the plus button to select a launcher executable when automatic detection misses it. Use Search to filter the list and the refresh button to scan again.
 
-Portal checks registered installation paths and common Windows locations. Xbox uses the registered `ms-xbox:` protocol. Custom executable paths are saved in `%LOCALAPPDATA%\Portal\settings.json`. Portal refreshes status every five seconds. It does not collect game libraries or sign into platform accounts.
+Portal checks registered installation paths and common Windows locations, including Amazon Games under LocalAppData, Rockstar's `LauncherPatcher.exe`, and Battle.net's stable launcher executable. Xbox is discovered through its current-user Windows package and activated using its app ID, with the registered `xbox:` and `ms-xbox:` protocols as fallbacks. Custom executable paths are saved in `%LOCALAPPDATA%\Portal\settings.json`. Portal refreshes status every five seconds. It does not collect game libraries or sign into platform accounts.
 
 ## Check the build
 
@@ -40,7 +40,7 @@ The debug binary also supports these commands:
 .\target\debug\portal.exe --launch steam
 ```
 
-Other launcher names are `ubisoft`, `epicgames`, `xbox`, and `ea`.
+Other launcher names are `ubisoft`, `epicgames`, `xbox`, `ea`, `rockstargames`, `battledotnet`, and `amazon`.
 
 Set `PORTAL_SETTINGS_DIR` to use an isolated settings directory for testing. Saved paths stay outside the repository. The packaged executable embeds its launcher icons and does not need the assets directory beside it.
 

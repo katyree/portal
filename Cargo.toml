@@ -1,6 +1,6 @@
 [package]
 name = "portal"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A minimal Windows game launcher dashboard built with Rust and GPUI."
 publish = false
@@ -14,7 +14,7 @@ sysinfo = "0.37"
 tempfile = "3"
 unicode-segmentation = "1"
 winreg = "0.55"
-windows = { version = "0.61", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_System_Com", "Win32_System_WinRT", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 strip = true

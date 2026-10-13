@@ -28,7 +28,11 @@ fn main() -> Result<()> {
         let id = catalog::LauncherId::ALL
             .into_iter()
             .find(|id| args.get(1).is_some_and(|slug| slug == id.slug()))
-            .ok_or_else(|| anyhow::anyhow!("Use --launch steam|ubisoft|epicgames|xbox|ea"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Use --launch steam|ubisoft|epicgames|xbox|ea|rockstargames|battledotnet|amazon"
+                )
+            })?;
         return catalog::Catalog::load()?.launch(id);
     }
     Application::new()

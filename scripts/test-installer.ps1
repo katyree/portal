@@ -53,7 +53,10 @@ try {
 
 $scanOutput = Join-Path $evidenceRoot 'installed-scan.txt'
 $scanProcess = Start-Process -FilePath $installedExecutable -ArgumentList '--scan' -WindowStyle Hidden -RedirectStandardOutput $scanOutput -RedirectStandardError (Join-Path $evidenceRoot 'installed-scan-error.txt') -Wait -PassThru
-if ($scanProcess.ExitCode -ne 0 -or @(Get-Content -LiteralPath $scanOutput).Count -ne 5) { throw 'The installed executable could not scan all five launchers.' }
+$catalogSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\catalog.rs') -Raw
+$launcherCountMatch = [regex]::Match($catalogSource, 'pub const ALL:\s*\[Self;\s*(\d+)\]')
+if (-not $launcherCountMatch.Success) { throw 'Could not read the launcher count from the catalog.' }
+if ($scanProcess.ExitCode -ne 0 -or @(Get-Content -LiteralPath $scanOutput).Count -ne [int]$launcherCountMatch.Groups[1].Value) { throw 'The installed executable could not scan every supported launcher.' }
 [IO.File]::WriteAllText($userSentinel, 'Test user file: preserve me')
 $userHash = (Get-FileHash -LiteralPath $userSentinel).Hash
 Run-Setup 'upgrade.log'

@@ -17,6 +17,9 @@ impl AssetSource for Assets {
             "epicgames.svg" => include_bytes!("../assets/epicgames.svg"),
             "xbox.svg" => include_bytes!("../assets/xbox.svg"),
             "ea.svg" => include_bytes!("../assets/ea.svg"),
+            "rockstargames.svg" => include_bytes!("../assets/rockstargames.svg"),
+            "battledotnet.svg" => include_bytes!("../assets/battledotnet.svg"),
+            "amazon.svg" => include_bytes!("../assets/amazon.svg"),
             _ => return Ok(None),
         };
         Ok(Some(Cow::Borrowed(bytes)))
@@ -160,6 +163,7 @@ impl Render for Portal {
                     .items_center()
                     .gap(px(16.))
                     .h(px(65.))
+                    .flex_shrink_0()
                     .px(px(17.))
                     .bg(rgb(0x222229))
                     .border_1()
@@ -188,10 +192,7 @@ impl Render for Portal {
                             .gap(px(8.))
                             .text_size(px(13.))
                             .text_color(rgb(if installed { 0xf0eff5 } else { 0x9997a3 }))
-                            .child(id.name())
-                            .when(launcher.running, |d| {
-                                d.child(div().size(px(5.)).rounded_full().bg(rgb(0x83cda0)))
-                            }),
+                            .child(id.name()),
                     )
                     .child(
                         div()
@@ -203,6 +204,25 @@ impl Render for Portal {
                             .text_center()
                             .child("⌑")
                             .on_click(cx.listener(move |portal, _, _, cx| portal.locate(id, cx))),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_end()
+                            .gap(px(6.))
+                            .w(px(61.))
+                            .flex_shrink_0()
+                            .text_size(px(11.))
+                            .text_color(rgb(if launcher.running { 0x83cda0 } else { 0xa39eac }))
+                            .when(launcher.running, |d| {
+                                d.child(div().size(px(5.)).rounded_full().bg(rgb(0x83cda0)))
+                            })
+                            .child(if launcher.running {
+                                "Running"
+                            } else {
+                                "Launch"
+                            }),
                     )
                     .child(
                         div()
