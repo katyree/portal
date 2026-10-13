@@ -2,7 +2,17 @@
 
 A minimal Windows game launcher dashboard built with Rust and GPUI. The dark Studio interface puts Steam, Ubisoft Connect, Epic Games, Xbox, and EA in one list.
 
-## Run Portal
+## Install Portal
+
+Run `portal-setup.exe`. Portal installs for your Windows account in `%LOCALAPPDATA%\Programs\Portal`, adds Start-menu shortcuts, and registers under **Settings > Apps > Installed apps**. You do not need administrator rights, Rust, or a separate Visual C++ runtime installer.
+
+The installer requires Windows 10 version 2004 or later, or Windows 11, on a system that can run x64 applications. This prototype installer is unsigned.
+
+To uninstall, close Portal and select **Uninstall** in Windows Settings, or use the **Uninstall Portal** Start-menu shortcut. The installer places `unins000.exe` beside `portal.exe`. The uninstaller removes installed files, shortcuts, and the Installed Apps entry. It preserves `%LOCALAPPDATA%\Portal\settings.json` and files you add to the installation directory.
+
+Running the installer again updates the same installation. It uses a stable application ID and does not create a second uninstall entry.
+
+## Run from source
 
 Install stable Rust and the Visual Studio C++ build tools with the Windows SDK, then run:
 
@@ -33,6 +43,24 @@ The debug binary also supports these commands:
 Other launcher names are `ubisoft`, `epicgames`, `xbox`, and `ea`.
 
 Set `PORTAL_SETTINGS_DIR` to use an isolated settings directory for testing. Saved paths stay outside the repository. The packaged executable embeds its launcher icons and does not need the assets directory beside it.
+
+## Build the installer
+
+```powershell
+./scripts/build-installer.ps1
+```
+
+This builds the release executable and writes `dist/portal-setup.exe` and its SHA-256 file. The script downloads the pinned, signed Inno Setup 6.7.1 compiler, verifies its hash, and extracts it in portable mode under `.tools`. To use a compiler you already have, pass `-CompilerPath 'C:\path\to\ISCC.exe'`.
+
+The `portal-setup.exe` filename avoids Windows' special compatibility behavior for executables named exactly `setup.exe`.
+
+To verify installation and uninstallation in isolated folders:
+
+```powershell
+./scripts/test-installer.ps1
+```
+
+The check refuses to run if Portal is already installed for the current account. It verifies the copied executable, launcher scanning, shortcuts, Installed Apps registration, reinstallation, uninstall removal, and preservation of settings and unrelated files. Logs are retained under `evidence`.
 
 ## Initial scope
 

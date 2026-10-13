@@ -17,8 +17,19 @@ jobs:
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo build --locked
+      - name: Build Windows installer
+        run: ./scripts/build-installer.ps1
+      - name: Verify installer and uninstaller
+        run: ./scripts/test-installer.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: portal-windows-debug
           path: target/debug/portal.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portal-windows-installer
+          path: |
+            dist/portal-setup.exe
+            dist/portal-setup.exe.sha256
           if-no-files-found: error
