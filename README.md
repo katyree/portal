@@ -24,6 +24,8 @@ Click the arrow to open an installed launcher. The adjacent label says **Running
 
 Portal checks registered installation paths and common Windows locations, including Amazon Games under LocalAppData, Rockstar's `LauncherPatcher.exe`, and Battle.net's stable launcher executable. Xbox is discovered through its current-user Windows package and activated using its app ID, with the registered `xbox:` and `ms-xbox:` protocols as fallbacks. Custom executable paths are saved in `%LOCALAPPDATA%\Portal\settings.json`. Portal refreshes status every five seconds. It does not collect game libraries or sign into platform accounts.
 
+Open **Settings** to enable or disable each launcher integration. Disabled launchers disappear from the dashboard and are excluded from discovery, status tracking, and launching. Choices persist across restarts. Turning an integration off preserves its custom executable path and leaves the launcher installed and running.
+
 ## Check the build
 
 ```powershell
@@ -38,6 +40,7 @@ The debug binary also supports these commands:
 ```powershell
 .\target\debug\portal.exe --scan
 .\target\debug\portal.exe --launch steam
+.\target\debug\portal.exe --settings
 ```
 
 Other launcher names are `ubisoft`, `epicgames`, `xbox`, `ea`, `rockstargames`, `battledotnet`, and `amazon`.

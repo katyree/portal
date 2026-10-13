@@ -35,9 +35,10 @@ fn main() -> Result<()> {
             })?;
         return catalog::Catalog::load()?.launch(id);
     }
+    let settings_open = args.first().is_some_and(|arg| arg == "--settings");
     Application::new()
         .with_assets(ui::Assets)
-        .run(|cx: &mut App| {
+        .run(move |cx: &mut App| {
             search_input::bind_keys(cx);
             let bounds = Bounds::centered(None, size(px(620.), px(570.)), cx);
             cx.open_window(
@@ -50,7 +51,7 @@ fn main() -> Result<()> {
                     window_min_size: Some(size(px(490.), px(480.))),
                     ..Default::default()
                 },
-                |_, cx| cx.new(ui::Portal::new),
+                |_, cx| cx.new(|cx| ui::Portal::new(cx, settings_open)),
             )
             .expect("Could not create Portal window");
             cx.on_window_closed(|cx| {

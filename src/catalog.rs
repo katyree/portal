@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     io::Write,
     path::{Path, PathBuf},
@@ -144,6 +144,8 @@ pub struct LauncherStatus {
 struct Settings {
     #[serde(default)]
     executable_overrides: BTreeMap<LauncherId, PathBuf>,
+    #[serde(default)]
+    disabled_launchers: BTreeSet<LauncherId>,
 }
 
 #[derive(Clone)]
@@ -177,6 +179,7 @@ impl Catalog {
         system.refresh_processes(ProcessesToUpdate::All, true);
         LauncherId::ALL
             .into_iter()
+            .filter(|id| self.is_enabled(*id))
             .map(|id| {
                 let target = self.discover(id);
                 let running = system.processes().values().any(|process| {
@@ -321,6 +324,21 @@ impl Catalog {
         let path = validate_executable(&path)?;
         let mut settings = self.settings.clone();
         settings.executable_overrides.insert(id, path);
+        self.save_settings(settings)
+    }
+    pub fn is_enabled(&self, id: LauncherId) -> bool {
+        !self.settings.disabled_launchers.contains(&id)
+    }
+    pub fn set_enabled(&mut self, id: LauncherId, enabled: bool) -> Result<()> {
+        let mut settings = self.settings.clone();
+        if enabled {
+            settings.disabled_launchers.remove(&id);
+        } else {
+            settings.disabled_launchers.insert(id);
+        }
+        self.save_settings(settings)
+    }
+    fn save_settings(&mut self, settings: Settings) -> Result<()> {
         let parent = self
             .settings_path
             .parent()
@@ -331,11 +349,14 @@ impl Catalog {
         temporary.as_file().sync_all()?;
         temporary
             .persist(&self.settings_path)
-            .context("Could not save launcher path")?;
+            .context("Could not save Portal settings")?;
         self.settings = settings;
         Ok(())
     }
     pub fn launch(&self, id: LauncherId) -> Result<()> {
+        if !self.is_enabled(id) {
+            bail!("{} integration is disabled in Settings", id.name());
+        }
         match self
             .discover(id)
             .context("Launcher not found. Select its executable using the folder button.")?
@@ -507,6 +528,33 @@ mod tests {
                 .is_err()
         );
         assert_eq!(fs::read(settings)?, before);
+        Ok(())
+    }
+    #[test]
+    fn integrations_default_on_and_persist_without_losing_paths() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let settings = directory.path().join("settings.json");
+        fs::write(&settings, br#"{"executable_overrides":{}}"#)?;
+        let mut catalog = Catalog::load_at(settings.clone())?;
+        assert!(LauncherId::ALL.into_iter().all(|id| catalog.is_enabled(id)));
+        let executable = directory.path().join("Test Launcher.exe");
+        fs::write(&executable, b"synthetic fixture")?;
+        catalog.set_executable(LauncherId::Epic, executable.clone())?;
+        catalog.set_enabled(LauncherId::Epic, false)?;
+        let mut restored = Catalog::load_at(settings)?;
+        assert!(!restored.is_enabled(LauncherId::Epic));
+        assert!(restored.scan().iter().all(|l| l.id != LauncherId::Epic));
+        assert!(
+            restored
+                .launch(LauncherId::Epic)
+                .unwrap_err()
+                .to_string()
+                .contains("disabled")
+        );
+        restored.set_enabled(LauncherId::Epic, true)?;
+        assert!(
+            matches!(Catalog::load_at(restored.settings_path)?.discover(LauncherId::Epic), Some(LaunchTarget::Executable(path)) if path == executable.canonicalize()?)
+        );
         Ok(())
     }
     #[test]

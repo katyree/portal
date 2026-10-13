@@ -35,10 +35,11 @@ pub struct Portal {
     search: Entity<TextInput>,
     message: Option<String>,
     scan_generation: u64,
+    settings_open: bool,
 }
 
 impl Portal {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(cx: &mut Context<Self>, settings_open: bool) -> Self {
         let search = cx.new(TextInput::new);
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
         let (catalog, message) = match Catalog::load() {
@@ -58,6 +59,7 @@ impl Portal {
             search,
             message,
             scan_generation: 0,
+            settings_open,
         };
         portal.refresh(cx);
         cx.spawn(async move |view, cx| {
@@ -90,6 +92,16 @@ impl Portal {
             });
         })
         .detach();
+    }
+    fn toggle_integration(&mut self, id: LauncherId, cx: &mut Context<Self>) {
+        if let Some(catalog) = &mut self.catalog {
+            self.message = catalog
+                .set_enabled(id, !catalog.is_enabled(id))
+                .err()
+                .map(|error| error.to_string());
+            self.refresh(cx);
+            cx.notify();
+        }
     }
     fn launch(&mut self, id: LauncherId, cx: &mut Context<Self>) {
         let Some(catalog) = self.catalog.clone() else {
@@ -153,6 +165,7 @@ impl Render for Portal {
         let rows: Vec<_> = self
             .launchers
             .iter()
+            .filter(|l| self.catalog.as_ref().is_none_or(|c| c.is_enabled(l.id)))
             .filter(|l| l.id.name().to_lowercase().contains(&query))
             .map(|launcher| {
                 let id = launcher.id;
@@ -247,6 +260,52 @@ impl Render for Portal {
                     )
             })
             .collect();
+        let empty = rows.is_empty();
+        let settings_rows = LauncherId::ALL
+            .into_iter()
+            .map(|id| {
+                let enabled = self.catalog.as_ref().is_some_and(|c| c.is_enabled(id));
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(16.))
+                    .h(px(65.))
+                    .flex_shrink_0()
+                    .px(px(17.))
+                    .bg(rgb(0x222229))
+                    .border_1()
+                    .border_color(rgb(0x2e2e37))
+                    .rounded(px(13.))
+                    .child(
+                        svg()
+                            .path(format!("{}.svg", id.slug()))
+                            .size(px(23.))
+                            .text_color(rgb(0xf5f4fa)),
+                    )
+                    .child(div().flex_1().text_size(px(13.)).child(id.name()))
+                    .child(
+                        div()
+                            .id(("integration", id as usize))
+                            .cursor_pointer()
+                            .flex()
+                            .items_center()
+                            .when(enabled, |d| d.justify_end())
+                            .w(px(40.))
+                            .h(px(24.))
+                            .px(px(3.))
+                            .rounded_full()
+                            .bg(rgb(if enabled { 0xbaabde } else { 0x45434e }))
+                            .child(div().size(px(18.)).rounded_full().bg(rgb(if enabled {
+                                0x28232f
+                            } else {
+                                0xb3afbd
+                            })))
+                            .on_click(cx.listener(move |portal, _, _, cx| {
+                                portal.toggle_integration(id, cx)
+                            })),
+                    )
+            })
+            .collect::<Vec<_>>();
         div()
             .size_full()
             .bg(rgb(0x18181e))
@@ -272,12 +331,38 @@ impl Render for Portal {
                     )
                     .child(
                         div()
-                            .id("rescan")
-                            .cursor_pointer()
-                            .text_color(rgb(0x96919f))
-                            .text_size(px(19.))
-                            .child("↻")
-                            .on_click(cx.listener(|portal, _, _, cx| portal.refresh(cx))),
+                            .flex()
+                            .items_center()
+                            .gap(px(18.))
+                            .when(!self.settings_open, |d| {
+                                d.child(
+                                    div()
+                                        .id("rescan")
+                                        .cursor_pointer()
+                                        .text_size(px(19.))
+                                        .text_color(rgb(0x96919f))
+                                        .child("↻")
+                                        .on_click(
+                                            cx.listener(|portal, _, _, cx| portal.refresh(cx)),
+                                        ),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .id("settings")
+                                    .cursor_pointer()
+                                    .text_color(rgb(0x96919f))
+                                    .text_size(px(12.))
+                                    .child(if self.settings_open {
+                                        "← Back"
+                                    } else {
+                                        "Settings"
+                                    })
+                                    .on_click(cx.listener(|portal, _, _, cx| {
+                                        portal.settings_open = !portal.settings_open;
+                                        cx.notify();
+                                    })),
+                            ),
                     ),
             )
             .child(
@@ -286,14 +371,20 @@ impl Render for Portal {
                     .items_center()
                     .justify_between()
                     .gap(px(18.))
-                    .child(div().text_size(px(29.)).child("Launchers"))
-                    .child(
-                        div()
-                            .w(px(173.))
-                            .rounded(px(8.))
-                            .overflow_hidden()
-                            .child(self.search.clone()),
-                    ),
+                    .child(div().text_size(px(29.)).child(if self.settings_open {
+                        "Settings"
+                    } else {
+                        "Launchers"
+                    }))
+                    .when(!self.settings_open, |d| {
+                        d.child(
+                            div()
+                                .w(px(173.))
+                                .rounded(px(8.))
+                                .overflow_hidden()
+                                .child(self.search.clone()),
+                        )
+                    }),
             )
             .child(
                 div()
@@ -303,20 +394,19 @@ impl Render for Portal {
                     .gap(px(10.))
                     .overflow_y_scroll()
                     .flex_1()
-                    .children(rows)
-                    .when(
-                        self.launchers
-                            .iter()
-                            .all(|l| !l.id.name().to_lowercase().contains(&query)),
-                        |d| {
-                            d.child(
-                                div()
-                                    .text_color(rgb(0x96919f))
-                                    .text_size(px(13.))
-                                    .child("No launchers found"),
-                            )
-                        },
-                    ),
+                    .when(self.settings_open, |d| d.children(settings_rows))
+                    .when(!self.settings_open, |d| d.children(rows))
+                    .when(!self.settings_open && empty, |d| {
+                        d.child(div().text_color(rgb(0x96919f)).text_size(px(13.)).child(
+                            if self.catalog.as_ref().is_some_and(|c| {
+                                LauncherId::ALL.into_iter().all(|id| !c.is_enabled(id))
+                            }) {
+                                "Enable launchers in Settings"
+                            } else {
+                                "No launchers found"
+                            },
+                        ))
+                    }),
             )
             .when_some(self.message.clone(), |d, message| {
                 d.child(

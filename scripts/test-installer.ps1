@@ -52,7 +52,13 @@ try {
 } finally { $registry.Dispose() }
 
 $scanOutput = Join-Path $evidenceRoot 'installed-scan.txt'
-$scanProcess = Start-Process -FilePath $installedExecutable -ArgumentList '--scan' -WindowStyle Hidden -RedirectStandardOutput $scanOutput -RedirectStandardError (Join-Path $evidenceRoot 'installed-scan-error.txt') -Wait -PassThru
+$originalSettingsDirectory = $env:PORTAL_SETTINGS_DIR
+try {
+    $env:PORTAL_SETTINGS_DIR = Join-Path $evidenceRoot 'scan-settings'
+    $scanProcess = Start-Process -FilePath $installedExecutable -ArgumentList '--scan' -WindowStyle Hidden -RedirectStandardOutput $scanOutput -RedirectStandardError (Join-Path $evidenceRoot 'installed-scan-error.txt') -Wait -PassThru
+} finally {
+    $env:PORTAL_SETTINGS_DIR = $originalSettingsDirectory
+}
 $catalogSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src\catalog.rs') -Raw
 $launcherCountMatch = [regex]::Match($catalogSource, 'pub const ALL:\s*\[Self;\s*(\d+)\]')
 if (-not $launcherCountMatch.Success) { throw 'Could not read the launcher count from the catalog.' }
