@@ -20,7 +20,11 @@ Install stable Rust and the Visual Studio C++ build tools with the Windows SDK, 
 cargo run --locked
 ```
 
-Click the arrow to open an automatically detected launcher. The adjacent label says **Running** or **Launch**, with a green dot beside **Running**. Launchers that Portal cannot find show **Not installed** without a launch button. Use Search to filter the list and the refresh button to scan again.
+The dashboard arranges launchers in a responsive card grid, from one column in a narrow window to five on a wide screen. Content stays centered within a maximum width of 1,600 logical pixels. Portal opens at 1,000 × 700 logical pixels.
+
+Click **Launch ↗** or **Open ↗** to open an automatically detected launcher. Each card shows **Ready to launch** or **Running**, with a green dot beside **Running**. Launchers that Portal cannot find show **Not installed** without a launch button. Use Search to filter the grid and the refresh button to scan again.
+
+Turn on **Installed only** beside Search to hide launchers that Portal cannot find. The filter combines with Search and leaves integration settings unchanged. It resets to showing all enabled launchers when you reopen Portal.
 
 Portal checks registered installation paths and common Windows locations, including Amazon Games under LocalAppData, Rockstar's `LauncherPatcher.exe`, and Battle.net's stable launcher executable. Xbox is discovered through its current-user Windows package and activated using its app ID, with the registered `xbox:` and `ms-xbox:` protocols as fallbacks. Custom executable paths are saved in `%LOCALAPPDATA%\Portal\settings.json`. Portal refreshes status every five seconds. It does not collect game libraries or sign into platform accounts.
 

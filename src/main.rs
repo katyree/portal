@@ -45,7 +45,7 @@ fn main() -> Result<()> {
         .with_assets(ui::Assets)
         .run(move |cx: &mut App| {
             search_input::bind_keys(cx);
-            let bounds = Bounds::centered(None, size(px(620.), px(570.)), cx);
+            let bounds = Bounds::centered(None, size(px(1000.), px(700.)), cx);
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
