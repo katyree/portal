@@ -46,6 +46,7 @@ pub struct Portal {
     message: Option<String>,
     scan_generation: u64,
     settings_open: bool,
+    installed_only: bool,
 }
 
 impl Portal {
@@ -70,6 +71,7 @@ impl Portal {
             message,
             scan_generation: 0,
             settings_open,
+            installed_only: false,
         };
         portal.refresh(cx);
         cx.spawn(async move |view, cx| {
@@ -133,12 +135,15 @@ impl Portal {
 }
 
 impl Render for Portal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let content_width = (f32::from(window.viewport_size().width) - 72.).min(1600.);
+        let columns = ((content_width + 16.) / (260. + 16.)).floor().clamp(1., 5.) as u16;
         let query = self.search.read(cx).content.to_lowercase();
-        let rows: Vec<_> = self
+        let cards: Vec<_> = self
             .launchers
             .iter()
             .filter(|l| self.catalog.as_ref().is_none_or(|c| c.is_enabled(l.id)))
+            .filter(|l| !self.installed_only || l.target.is_some())
             .filter(|l| l.id.name().to_lowercase().contains(&query))
             .map(|launcher| {
                 let id = launcher.id;
@@ -147,83 +152,96 @@ impl Render for Portal {
                 div()
                     .id(id.slug())
                     .flex()
-                    .items_center()
+                    .flex_col()
+                    .justify_between()
                     .gap(px(16.))
-                    .h(px(65.))
+                    .h(px(136.))
+                    .min_w_0()
                     .flex_shrink_0()
-                    .px(px(17.))
+                    .p(px(18.))
                     .bg(rgb(0x222229))
                     .border_1()
                     .border_color(rgb(0x2e2e37))
                     .rounded(px(13.))
+                    .hover(|style| style.border_color(rgb(0x655773)))
                     .child(
                         div()
-                            .size(px(39.))
                             .flex()
                             .items_center()
-                            .justify_center()
-                            .rounded(px(11.))
-                            .bg(rgb(0x303039))
+                            .gap(px(12.))
                             .child(
-                                svg()
-                                    .path(format!("{}.svg", id.slug()))
-                                    .size(px(23.))
-                                    .text_color(rgb(0xf5f4fa)),
+                                div()
+                                    .size(px(39.))
+                                    .flex_shrink_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded(px(11.))
+                                    .bg(rgb(0x303039))
+                                    .child(
+                                        svg()
+                                            .path(format!("{}.svg", id.slug()))
+                                            .size(px(23.))
+                                            .text_color(rgb(0xf5f4fa)),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(14.))
+                                    .text_color(rgb(if installed { 0xf0eff5 } else { 0x9997a3 }))
+                                    .child(id.name()),
                             ),
                     )
                     .child(
                         div()
-                            .flex_1()
                             .flex()
                             .items_center()
+                            .justify_between()
                             .gap(px(8.))
-                            .text_size(px(13.))
-                            .text_color(rgb(if installed { 0xf0eff5 } else { 0x9997a3 }))
-                            .child(id.name()),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_end()
-                            .gap(px(6.))
-                            .w(px(90.))
-                            .flex_shrink_0()
-                            .text_size(px(11.))
-                            .text_color(rgb(if running { 0x83cda0 } else { 0xa39eac }))
-                            .when(running, |d| {
-                                d.child(div().size(px(5.)).rounded_full().bg(rgb(0x83cda0)))
-                            })
-                            .child(if !installed {
-                                "Not installed"
-                            } else if running {
-                                "Running"
-                            } else {
-                                "Launch"
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.))
+                                    .text_size(px(12.))
+                                    .text_color(rgb(if running { 0x83cda0 } else { 0xa39eac }))
+                                    .when(running, |d| {
+                                        d.child(div().size(px(5.)).rounded_full().bg(rgb(0x83cda0)))
+                                    })
+                                    .child(if !installed {
+                                        "Not installed"
+                                    } else if running {
+                                        "Running"
+                                    } else {
+                                        "Ready to launch"
+                                    }),
+                            )
+                            .when(installed, |d| {
+                                d.child(
+                                    div()
+                                        .id(("launch", id as usize))
+                                        .cursor_pointer()
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .h(px(33.))
+                                        .px(px(12.))
+                                        .flex_shrink_0()
+                                        .rounded(px(8.))
+                                        .bg(rgb(0x373440))
+                                        .hover(|style| style.bg(rgb(0x494052)))
+                                        .text_color(rgb(0xd9cdee))
+                                        .text_size(px(12.))
+                                        .child(if running { "Open ↗" } else { "Launch ↗" })
+                                        .on_click(cx.listener(move |portal, _, _, cx| {
+                                            portal.launch(id, cx);
+                                        })),
+                                )
                             }),
                     )
-                    .child(div().size(px(33.)).flex_shrink_0().when(installed, |d| {
-                        d.child(
-                            div()
-                                .id(("launch", id as usize))
-                                .cursor_pointer()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .size(px(33.))
-                                .rounded(px(9.))
-                                .bg(rgb(0x373440))
-                                .text_color(rgb(0xd9cdee))
-                                .text_size(px(18.))
-                                .child("↗")
-                                .on_click(cx.listener(move |portal, _, _, cx| {
-                                    portal.launch(id, cx);
-                                })),
-                        )
-                    }))
             })
             .collect();
-        let empty = rows.is_empty();
+        let empty = cards.is_empty();
         let settings_rows = LauncherId::ALL
             .into_iter()
             .map(|id| {
@@ -276,11 +294,15 @@ impl Render for Portal {
             .font_family("Segoe UI")
             .flex()
             .flex_col()
+            .items_center()
             .px(px(36.))
             .py(px(29.))
             .gap(px(26.))
             .child(
                 div()
+                    .w_full()
+                    .max_w(px(1600.))
+                    .flex_shrink_0()
                     .flex()
                     .items_center()
                     .justify_between()
@@ -335,7 +357,11 @@ impl Render for Portal {
             )
             .child(
                 div()
+                    .w_full()
+                    .max_w(px(1600.))
+                    .flex_shrink_0()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .justify_between()
                     .gap(px(18.))
@@ -347,29 +373,86 @@ impl Render for Portal {
                     .when(!self.settings_open, |d| {
                         d.child(
                             div()
-                                .w(px(173.))
-                                .rounded(px(8.))
-                                .overflow_hidden()
-                                .child(self.search.clone()),
+                                .flex()
+                                .items_center()
+                                .gap(px(14.))
+                                .child(
+                                    div()
+                                        .id("installed-only")
+                                        .cursor_pointer()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.))
+                                        .text_size(px(12.))
+                                        .text_color(rgb(0xc4bfce))
+                                        .child("Installed only")
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .when(self.installed_only, |d| d.justify_end())
+                                                .w(px(32.))
+                                                .h(px(20.))
+                                                .px(px(3.))
+                                                .rounded_full()
+                                                .bg(rgb(if self.installed_only {
+                                                    0xbaabde
+                                                } else {
+                                                    0x45434e
+                                                }))
+                                                .child(div().size(px(14.)).rounded_full().bg(rgb(
+                                                    if self.installed_only {
+                                                        0x28232f
+                                                    } else {
+                                                        0xb3afbd
+                                                    },
+                                                ))),
+                                        )
+                                        .on_click(cx.listener(|portal, _, _, cx| {
+                                            portal.installed_only = !portal.installed_only;
+                                            cx.notify();
+                                        })),
+                                )
+                                .child(
+                                    div()
+                                        .w(px(173.))
+                                        .rounded(px(8.))
+                                        .overflow_hidden()
+                                        .child(self.search.clone()),
+                                ),
                         )
                     }),
             )
             .child(
                 div()
                     .id("launcher-list")
+                    .w_full()
+                    .max_w(px(1600.))
+                    .min_h_0()
                     .flex()
                     .flex_col()
                     .gap(px(10.))
                     .overflow_y_scroll()
                     .flex_1()
                     .when(self.settings_open, |d| d.children(settings_rows))
-                    .when(!self.settings_open, |d| d.children(rows))
+                    .when(!self.settings_open && !empty, |d| {
+                        d.child(
+                            div()
+                                .grid()
+                                .grid_cols(columns)
+                                .gap(px(16.))
+                                .flex_shrink_0()
+                                .children(cards),
+                        )
+                    })
                     .when(!self.settings_open && empty, |d| {
                         d.child(div().text_color(rgb(0x96919f)).text_size(px(13.)).child(
                             if self.catalog.as_ref().is_some_and(|c| {
                                 LauncherId::ALL.into_iter().all(|id| !c.is_enabled(id))
                             }) {
                                 "Enable launchers in Settings"
+                            } else if self.installed_only {
+                                "No installed launchers found"
                             } else {
                                 "No launchers found"
                             },
@@ -379,6 +462,9 @@ impl Render for Portal {
             .when_some(self.message.clone(), |d, message| {
                 d.child(
                     div()
+                        .w_full()
+                        .max_w(px(1600.))
+                        .flex_shrink_0()
                         .text_size(px(12.))
                         .text_color(rgb(0xe4a4a5))
                         .child(message),
